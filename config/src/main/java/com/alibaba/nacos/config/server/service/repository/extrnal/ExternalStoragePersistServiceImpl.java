@@ -17,6 +17,7 @@
 package com.alibaba.nacos.config.server.service.repository.extrnal;
 
 import com.alibaba.nacos.api.exception.NacosException;
+import com.alibaba.nacos.api.remote.response.Response;
 import com.alibaba.nacos.common.utils.MD5Utils;
 import com.alibaba.nacos.config.server.configuration.ConditionOnExternalStorage;
 import com.alibaba.nacos.config.server.constant.Constants;
@@ -178,7 +179,9 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
         boolean result = tjt.execute(status -> {
             try {
                 long configId = addConfigInfoAtomic(-1, srcIp, srcUser, configInfo, time, configAdvanceInfo);
+                LogUtil.DEFAULT_LOG.info("添加的配置ID：{}",configId);
                 String configTags = configAdvanceInfo == null ? null : (String) configAdvanceInfo.get("config_tags");
+                LogUtil.DEFAULT_LOG.info("configTags：{}",configTags);
                 addConfigTagsRelation(configId, configTags, configInfo.getDataId(), configInfo.getGroup(),
                         configInfo.getTenant());
                 insertConfigHistoryAtomic(0, configInfo, srcIp, srcUser, time, "I");
@@ -432,6 +435,8 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
         try {
             addConfigInfo(srcIp, srcUser, configInfo, time, configAdvanceInfo, notify);
         } catch (DataIntegrityViolationException ive) { // Unique constraint conflict
+            ive.printStackTrace();
+            LogUtil.DEFAULT_LOG.error(ive.getMessage());
             updateConfigInfo(configInfo, srcIp, srcUser, time, configAdvanceInfo, notify);
         }
     }
@@ -2064,7 +2069,22 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
         final String sql =
                 "INSERT INTO config_info(data_id,group_id,tenant_id,app_name,content,md5,src_ip,src_user,gmt_create,"
                         + "gmt_modified,c_desc,c_use,effect,type,c_schema) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-        
+
+
+        LogUtil.DEFAULT_LOG.info("插入配置中心表sql config_info[sql]:{}",sql);
+
+        LogUtil.DEFAULT_LOG.info("插入配置中心表数据 config_info[parameters]:dataId:{},group:{},tenantTmp:{},appNameTmp:{},content:{}," +
+                        "md5Tmp:{},srcIp:{},srcUser:{},time:{},time:{}," +
+                        "desc:{},use:{},effect:{},type:{},schema:{}",
+                configInfo.getDataId(),configInfo.getGroup(),tenantTmp, appNameTmp,configInfo.getContent(),
+                md5Tmp,srcIp,srcUser,time,time,
+                desc,use,effect,type,schema);
+
+        LogUtil.DEFAULT_LOG.info("INSERT INTO config_info(data_id,group_id,tenant_id,app_name,content,md5,src_ip,src_user,gmt_create,gmt_modified,c_desc,c_use,effect,type,c_schema) " +
+                        "VALUES({},{},{},{},{},{},{},{},{},{},{},{},{},{},{})",
+                configInfo.getDataId(),configInfo.getGroup(),tenantTmp, appNameTmp,configInfo.getContent(),
+                md5Tmp,srcIp,srcUser,time,time,
+                desc,use,effect,type,schema);
         try {
             jt.update(new PreparedStatementCreator() {
                 @Override
@@ -2077,23 +2097,27 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
                     ps.setString(5, configInfo.getContent());
                     ps.setString(6, md5Tmp);
                     ps.setString(7, srcIp);
-                    ps.setString(8, srcUser);
+                    ps.setString(8, StringUtils.isBlank(srcUser)?"admin":srcUser);
                     ps.setTimestamp(9, time);
                     ps.setTimestamp(10, time);
-                    ps.setString(11, desc);
-                    ps.setString(12, use);
-                    ps.setString(13, effect);
-                    ps.setString(14, type);
-                    ps.setString(15, schema);
+                    ps.setString(11, StringUtils.isBlank(desc)?"empty String":desc);
+                    ps.setString(12, StringUtils.isBlank(use)?"empty String":use);
+                    ps.setString(13, StringUtils.isBlank(effect)?"empty String":effect);
+                    ps.setString(14, StringUtils.isBlank(type)?"yaml":type);
+                    ps.setString(15, StringUtils.isBlank(schema)?"empty String":schema);
                     return ps;
                 }
             }, keyHolder);
             Number nu = keyHolder.getKey();
+            LogUtil.DEFAULT_LOG.info("number:{}",nu);
             if (nu == null) {
+                //LogUtil.DEFAULT_LOG.info("number-id:{}",nu.longValue());
+                LogUtil.DEFAULT_LOG.error("insert config_info fail");
                 throw new IllegalArgumentException("insert config_info fail");
             }
             return nu.longValue();
         } catch (CannotGetJdbcConnectionException e) {
+            e.printStackTrace();
             LogUtil.FATAL_LOG.error("[db-error] " + e.toString(), e);
             throw e;
         }
@@ -2116,6 +2140,7 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
                     "INSERT INTO config_tags_relation(id,tag_name,tag_type,data_id,group_id,tenant_id) VALUES(?,?,?,?,?,?)",
                     configId, tagName, null, dataId, group, tenant);
         } catch (CannotGetJdbcConnectionException e) {
+            e.printStackTrace();
             LogUtil.FATAL_LOG.error("[db-error] " + e.toString(), e);
             throw e;
         }
