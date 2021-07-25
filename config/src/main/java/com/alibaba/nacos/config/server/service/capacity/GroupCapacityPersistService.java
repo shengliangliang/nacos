@@ -71,7 +71,7 @@ public class GroupCapacityPersistService {
             GroupCapacity groupCapacity = new GroupCapacity();
             groupCapacity.setId(rs.getLong("id"));
             groupCapacity.setQuota(rs.getInt("quota"));
-            groupCapacity.setUsage(rs.getInt("usage"));
+            groupCapacity.setUsage(rs.getInt("usage_"));
             groupCapacity.setMaxSize(rs.getInt("max_size"));
             groupCapacity.setMaxAggrCount(rs.getInt("max_aggr_count"));
             groupCapacity.setMaxAggrSize(rs.getInt("max_aggr_size"));
@@ -82,7 +82,7 @@ public class GroupCapacityPersistService {
     
     public GroupCapacity getGroupCapacity(String groupId) {
         String sql =
-                "SELECT id, quota, `usage`, `max_size`, max_aggr_count, max_aggr_size, group_id FROM group_capacity "
+                "SELECT id, quota, `usage_`, `max_size`, max_aggr_count, max_aggr_size, group_id FROM group_capacity "
                         + "WHERE group_id=?";
         List<GroupCapacity> list = jdbcTemplate.query(sql, new Object[] {groupId}, GROUP_CAPACITY_ROW_MAPPER);
         if (list.isEmpty()) {
@@ -104,11 +104,11 @@ public class GroupCapacityPersistService {
     public boolean insertGroupCapacity(final GroupCapacity capacity) {
         String sql;
         if (CLUSTER.equals(capacity.getGroup())) {
-            sql = "INSERT INTO group_capacity (group_id, quota, `usage`, `max_size`, max_aggr_count, max_aggr_size, "
+            sql = "INSERT INTO group_capacity (group_id, quota, `usage_`, `max_size`, max_aggr_count, max_aggr_size, "
                     + "gmt_create, gmt_modified) SELECT ?, ?, count(*), ?, ?, ?, ?, ? FROM config_info;";
         } else {
             // Note: add "tenant_id = ''" condition.
-            sql = "INSERT INTO group_capacity (group_id, quota, `usage`, `max_size`, max_aggr_count, max_aggr_size, "
+            sql = "INSERT INTO group_capacity (group_id, quota, `usage_`, `max_size`, max_aggr_count, max_aggr_size, "
                     + "gmt_create, gmt_modified) SELECT ?, ?, count(*), ?, ?, ?, ?, ? FROM config_info WHERE "
                     + "group_id=? AND tenant_id = '';";
         }
@@ -165,7 +165,7 @@ public class GroupCapacityPersistService {
      */
     public boolean incrementUsageWithDefaultQuotaLimit(GroupCapacity groupCapacity) {
         String sql =
-                "UPDATE group_capacity SET `usage` = `usage` + 1, gmt_modified = ? WHERE group_id = ? AND `usage` <"
+                "UPDATE group_capacity SET `usage_` = `usage_` + 1, gmt_modified = ? WHERE group_id = ? AND `usage_` <"
                         + " ? AND quota = 0";
         try {
             int affectRow = jdbcTemplate
@@ -185,7 +185,7 @@ public class GroupCapacityPersistService {
      */
     public boolean incrementUsageWithQuotaLimit(GroupCapacity groupCapacity) {
         String sql =
-                "UPDATE group_capacity SET `usage` = `usage` + 1, gmt_modified = ? WHERE group_id = ? AND `usage` < "
+                "UPDATE group_capacity SET `usage_` = `usage_` + 1, gmt_modified = ? WHERE group_id = ? AND `usage_` < "
                         + "quota AND quota != 0";
         try {
             return jdbcTemplate.update(sql, groupCapacity.getGmtModified(), groupCapacity.getGroup()) == 1;
@@ -203,7 +203,7 @@ public class GroupCapacityPersistService {
      * @return operate result.
      */
     public boolean incrementUsage(GroupCapacity groupCapacity) {
-        String sql = "UPDATE group_capacity SET `usage` = `usage` + 1, gmt_modified = ? WHERE group_id = ?";
+        String sql = "UPDATE group_capacity SET `usage_` = `usage_` + 1, gmt_modified = ? WHERE group_id = ?";
         try {
             int affectRow = jdbcTemplate.update(sql, groupCapacity.getGmtModified(), groupCapacity.getGroup());
             return affectRow == 1;
@@ -220,7 +220,7 @@ public class GroupCapacityPersistService {
      * @return operate result.
      */
     public boolean decrementUsage(GroupCapacity groupCapacity) {
-        String sql = "UPDATE group_capacity SET `usage` = `usage` - 1, gmt_modified = ? WHERE group_id = ? AND `usage` > 0";
+        String sql = "UPDATE group_capacity SET `usage_` = `usage_` - 1, gmt_modified = ? WHERE group_id = ? AND `usage_` > 0";
         try {
             return jdbcTemplate.update(sql, groupCapacity.getGmtModified(), groupCapacity.getGroup()) == 1;
         } catch (CannotGetJdbcConnectionException e) {
@@ -290,7 +290,7 @@ public class GroupCapacityPersistService {
     public boolean correctUsage(String group, Timestamp gmtModified) {
         String sql;
         if (CLUSTER.equals(group)) {
-            sql = "UPDATE group_capacity SET `usage` = (SELECT count(*) FROM config_info), gmt_modified = ? WHERE "
+            sql = "UPDATE group_capacity SET `usage_` = (SELECT count(*) FROM config_info), gmt_modified = ? WHERE "
                     + "group_id = ?";
             try {
                 return jdbcTemplate.update(sql, gmtModified, group) == 1;
@@ -300,7 +300,7 @@ public class GroupCapacityPersistService {
             }
         } else {
             // Note: add "tenant_id = ''" condition.
-            sql = "UPDATE group_capacity SET `usage` = (SELECT count(*) FROM config_info WHERE group_id=? AND "
+            sql = "UPDATE group_capacity SET `usage_` = (SELECT count(*) FROM config_info WHERE group_id=? AND "
                     + "tenant_id = ''), gmt_modified = ? WHERE group_id = ?";
             try {
                 return jdbcTemplate.update(sql, group, gmtModified, group) == 1;
